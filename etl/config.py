@@ -1,0 +1,38 @@
+"""
+Shared constants for Week 1 ETL.
+
+Team: update notes here when you change station IDs, break coordinates, or paths.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+# Repo root (parent of etl/)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Cache raw downloads under data/raw/ (gitignored)
+DATA_RAW = REPO_ROOT / "data" / "raw"
+NDBC_CACHE_DIR = DATA_RAW / "ndbc"
+NWS_CACHE_DIR = DATA_RAW / "nws"
+
+# NDBC Standard Meteorological (stdmet) realtime2 feeds — verify columns in README if NOAA changes layout
+NDBC_REALTIME2_URL = "https://www.ndbc.noaa.gov/data/realtime2/{station}.txt"
+NDBC_STATIONS = (
+    "46232",  # Point Loma South
+    "46254",  # Mission Bay West
+)
+
+# Surf breaks — approximate coordinates for NWS grid lookup (api.weather.gov /points).
+# Confirm on a map; if hourly returns 404 / marine-only issues, try a nearby inland proxy — ask mentor.
+BREAKS: dict[str, tuple[float, float]] = {
+    "la_jolla_shores": (32.8579, -117.2575),
+    "blacks": (32.8807, -117.5036),
+    "pb_point": (32.7970, -117.2550),
+}
+
+# NWS requires a descriptive User-Agent (identify your app / repo / contact).
+# Replace with your club or mentor-approved string before heavy use.
+NWS_USER_AGENT = (
+    "SurfCastSD/0.1 (college club project; https://github.com/Igosain08/surfcastSD)"
+)
