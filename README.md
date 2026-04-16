@@ -67,7 +67,7 @@ By the end of Week 1: **one command** (``scripts/run_week1.py``) produces a **cl
 
 ## For the mentor
 
-Push this repo to GitHub, set **branch protection** / PR rules if you want, and assign Week 1 owners to each `etl/` file + docs tasks. The stubs intentionally **`raise NotImplementedError`** until the team implements them.
+Set **branch protection** / PR rules on GitHub if you want, and assign Week 1 owners to each `etl/` file + docs tasks. The stubs intentionally **`raise NotImplementedError`** until the team implements them.
 
 ## License
 
