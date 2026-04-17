@@ -36,11 +36,20 @@ Checklist
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
+import requests
 
-from etl.config import BREAKS, NWS_CACHE_DIR
+from etl.config import BREAKS, NWS_CACHE_DIR, NWS_USER_AGENT
+
+COMPASS_TO_DEGREES = {
+    "N": 0, "NNE": 22, "NE": 45, "ENE": 67,
+    "E": 90, "ESE": 112, "SE": 135, "SSE": 157,
+    "S": 180, "SSW": 202, "SW": 225, "WSW": 247,
+    "W": 270, "WNW": 292, "NW": 315, "NNW": 337,
+}
 
 
 def fetch_wind_all_breaks(
@@ -51,7 +60,48 @@ def fetch_wind_all_breaks(
     Return concatenated long-format hourly wind for every break in ``breaks``
     (default: ``BREAKS``). ``cache_dir`` may be ``NWS_CACHE_DIR`` to stash JSON snapshots.
     """
-    raise NotImplementedError("Implement: points → forecastHourly → parse periods → DataFrame.")
+    if breaks is None:
+        breaks = BREAKS
+
+    headers = {"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"}
+    all_frames = []
+
+    for break_id, (lat, lon) in breaks.items():
+        points_resp = requests.get(
+            f"https://api.weather.gov/points/{lat},{lon}",
+            headers=headers,
+            timeout=15,
+        )
+        points_resp.raise_for_status()
+        forecast_hourly_url = points_resp.json()["properties"]["forecastHourly"]
+
+        forecast_resp = requests.get(
+            forecast_hourly_url,
+            headers=headers,
+            timeout=15,
+        )
+        forecast_resp.raise_for_status()
+        periods = forecast_resp.json()["properties"]["periods"]
+
+        if cache_dir is not None:
+            cache_dir = Path(cache_dir)
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            (cache_dir / f"{break_id}_hourly.json").write_text(json.dumps(periods, indent=2))
+
+        rows = []
+        for period in periods:
+            speed_mph = float(period.get("windSpeed", "0 mph").replace("mph", "").strip())
+            direction_deg = COMPASS_TO_DEGREES.get(period.get("windDirection", "N").upper())
+            rows.append({
+                "timestamp_utc": pd.Timestamp(period["startTime"]).tz_convert("UTC"),
+                "break_id": break_id,
+                "wind_speed_mph": speed_mph,
+                "wind_direction_degrees": direction_deg,
+            })
+
+        all_frames.append(pd.DataFrame(rows))
+
+    return pd.concat(all_frames, ignore_index=True)
 
 
 def main() -> None:
