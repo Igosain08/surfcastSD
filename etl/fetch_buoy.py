@@ -41,18 +41,59 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import urllib
 
 from etl.config import NDBC_CACHE_DIR, NDBC_STATIONS
 
 
 def download_station_txt(station: str, cache_dir: Path | None = None) -> Path:
     """Download realtime2 stdmet for ``station`` and save under ``cache_dir`` (default: ``NDBC_CACHE_DIR``)."""
-    raise NotImplementedError("Implement: HTTP GET, write file, return path.")
+    ("Implement: HTTP GET, write file, return path.")
+    if cache_dir is None:
+        cache_dir = NDBC_CACHE_DIR
+        
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    file_path = cache_dir / f"{station}.txt"
+    url = f"https://www.ndbc.noaa.gov/data/realtime2/{station}.txt"
+    
+    urllib.request.urlretrieve(url, file_path)
+    return file_path
 
 
 def parse_ndbc_stdmet_txt(path: Path) -> pd.DataFrame:
     """Parse one cached NDBC ``realtime2`` file into a raw column DataFrame (as strings or mixed)."""
-    raise NotImplementedError("Implement: skip ``#`` header noise, build datetime + keep swell cols.")
+    ("Implement: skip ``#`` header noise, build datetime + keep swell cols.")
+    # Read space-delimited text, skipping the second row (units)
+    df = pd.read_csv(
+        path, 
+        sep=r'\s+', 
+        skiprows=[1], 
+        na_values=['MM', '99.0', '99.00', '999', '9999'], 
+        low_memory=False
+    )
+    
+    # Clean up the header line which starts with a '#'
+    df.rename(columns=lambda x: x.lstrip('#'), inplace=True)
+    
+    # Identify the year column (NDBC uses either YYYY or YY)
+    yr_col = 'YYYY' if 'YYYY' in df.columns else 'YY'
+    
+    # Map NDBC columns to pandas datetime expected names
+    date_mapping = {yr_col: 'year', 'MM': 'month', 'DD': 'day', 'hh': 'hour', 'mm': 'minute'}
+    dt_df = df[list(date_mapping.keys())].rename(columns=date_mapping)
+    
+    # Create timezone-aware UTC timestamps
+    df['timestamp_utc'] = pd.to_datetime(dt_df, errors='coerce', utc=True)
+    
+    # Extract swell columns and enforce numeric types
+    swell_cols = ['WVHT', 'DPD', 'MWD', 'APD']
+    for col in swell_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        else:
+            df[col] = pd.NA
+            
+    return df[['timestamp_utc'] + swell_cols]
 
 
 def fetch_buoy_swell(
@@ -65,7 +106,33 @@ def fetch_buoy_swell(
 
     ``use_cache``: if True and a cached file exists, skip re-downloading.
     """
-    raise NotImplementedError("Wire up download + parse + concat + date filter.")
+    ("Wire up download + parse + concat + date filter.")
+
+    station_dfs = []
+    cache_dir = Path(NDBC_CACHE_DIR) if NDBC_CACHE_DIR else Path("data/raw/ndbc")
+    
+    for station in stations:
+        file_path = cache_dir / f"{station}.txt"
+        
+        if not (use_cache and file_path.exists()):
+            file_path = download_station_txt(station, cache_dir)
+            
+        df = parse_ndbc_stdmet_txt(file_path)
+        df['station'] = station
+        station_dfs.append(df)
+        
+    if not station_dfs:
+        return pd.DataFrame()
+        
+    combined_df = pd.concat(station_dfs, ignore_index=True)
+    
+    # Filter by timeframe
+    cutoff_time = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=days)
+    filtered_df = combined_df[combined_df['timestamp_utc'] >= cutoff_time].copy()
+    
+    # Rearrange columns to match output contract
+    cols = ['timestamp_utc', 'station', 'WVHT', 'DPD', 'MWD', 'APD']
+    return filtered_df[cols]
 
 
 def main() -> None:
