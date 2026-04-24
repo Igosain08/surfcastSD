@@ -135,6 +135,9 @@ def fetch_wind_all_breaks(
 
         all_frames.append(pd.DataFrame(rows))
 
+    if not all_frames:
+        log.warning("No wind data fetched — all breaks skipped")
+        return pd.DataFrame(columns=["timestamp_utc", "break_id", "wind_speed_mph", "wind_direction_degrees"])
     return pd.concat(all_frames, ignore_index=True)
 
 
