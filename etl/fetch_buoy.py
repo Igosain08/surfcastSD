@@ -41,9 +41,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
-import urllib
+import urllib.request
 
-from etl.config import NDBC_CACHE_DIR, NDBC_STATIONS
+from etl.config import NDBC_CACHE_DIR, NDBC_STATIONS, NDBC_REALTIME2_URL
 
 
 def download_station_txt(station: str, cache_dir: Path | None = None) -> Path:
