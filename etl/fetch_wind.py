@@ -37,6 +37,8 @@ Checklist
 from __future__ import annotations
 
 import json
+import logging
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -44,12 +46,27 @@ import requests
 
 from etl.config import BREAKS, NWS_CACHE_DIR, NWS_USER_AGENT
 
+log = logging.getLogger(__name__)
+
 COMPASS_TO_DEGREES = {
     "N": 0, "NNE": 22, "NE": 45, "ENE": 67,
     "E": 90, "ESE": 112, "SE": 135, "SSE": 157,
     "S": 180, "SSW": 202, "SW": 225, "WSW": 247,
     "W": 270, "WNW": 292, "NW": 315, "NNW": 337,
 }
+
+
+def parse_wind_speed(speed_str: str) -> float:
+    """Parse NWS wind speed string to mph.
+
+    Handles: "Calm", "5 mph", "5 to 10 mph" (returns max of range).
+    """
+    if not speed_str or speed_str.strip().lower() == "calm":
+        return 0.0
+    numbers = re.findall(r"\d+(?:\.\d+)?", speed_str)
+    if not numbers:
+        return 0.0
+    return float(max(numbers, key=float))
 
 
 def fetch_wind_all_breaks(
@@ -66,31 +83,48 @@ def fetch_wind_all_breaks(
     headers = {"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"}
     all_frames = []
 
-    for break_id, (lat, lon) in breaks.items():
-        points_resp = requests.get(
-            f"https://api.weather.gov/points/{lat},{lon}",
-            headers=headers,
-            timeout=15,
-        )
-        points_resp.raise_for_status()
-        forecast_hourly_url = points_resp.json()["properties"]["forecastHourly"]
+    if cache_dir is not None:
+        cache_dir = Path(cache_dir)
+        cache_dir.mkdir(parents=True, exist_ok=True)
 
-        forecast_resp = requests.get(
-            forecast_hourly_url,
-            headers=headers,
-            timeout=15,
-        )
-        forecast_resp.raise_for_status()
-        periods = forecast_resp.json()["properties"]["periods"]
+    for break_id, (lat, lon) in breaks.items():
+        try:
+            points_resp = requests.get(
+                f"https://api.weather.gov/points/{lat},{lon}",
+                headers=headers,
+                timeout=15,
+            )
+            if points_resp.status_code == 404:
+                log.warning("NWS /points 404 for %s (%s,%s) — skipping", break_id, lat, lon)
+                continue
+            points_resp.raise_for_status()
+
+            forecast_hourly_url = points_resp.json()["properties"].get("forecastHourly")
+            if not forecast_hourly_url:
+                log.warning("forecastHourly is null for %s — skipping", break_id)
+                continue
+
+            forecast_resp = requests.get(
+                forecast_hourly_url,
+                headers=headers,
+                timeout=15,
+            )
+            if forecast_resp.status_code == 404:
+                log.warning("forecastHourly 404 for %s — skipping", break_id)
+                continue
+            forecast_resp.raise_for_status()
+
+            periods = forecast_resp.json()["properties"]["periods"]
+        except requests.RequestException as exc:
+            log.warning("Request failed for %s: %s — skipping", break_id, exc)
+            continue
 
         if cache_dir is not None:
-            cache_dir = Path(cache_dir)
-            cache_dir.mkdir(parents=True, exist_ok=True)
             (cache_dir / f"{break_id}_hourly.json").write_text(json.dumps(periods, indent=2))
 
         rows = []
         for period in periods:
-            speed_mph = float(period.get("windSpeed", "0 mph").replace("mph", "").strip())
+            speed_mph = parse_wind_speed(period.get("windSpeed", ""))
             direction_deg = COMPASS_TO_DEGREES.get(period.get("windDirection", "N").upper())
             rows.append({
                 "timestamp_utc": pd.Timestamp(period["startTime"]).tz_convert("UTC"),
