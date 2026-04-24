@@ -48,21 +48,19 @@ from etl.config import NDBC_CACHE_DIR, NDBC_STATIONS, NDBC_REALTIME2_URL
 
 def download_station_txt(station: str, cache_dir: Path | None = None) -> Path:
     """Download realtime2 stdmet for ``station`` and save under ``cache_dir`` (default: ``NDBC_CACHE_DIR``)."""
-    ("Implement: HTTP GET, write file, return path.")
     if cache_dir is None:
         cache_dir = NDBC_CACHE_DIR
-        
+
     cache_dir.mkdir(parents=True, exist_ok=True)
     file_path = cache_dir / f"{station}.txt"
-    url = f"https://www.ndbc.noaa.gov/data/realtime2/{station}.txt"
-    
+    url = NDBC_REALTIME2_URL.format(station=station)
+
     urllib.request.urlretrieve(url, file_path)
     return file_path
 
 
 def parse_ndbc_stdmet_txt(path: Path) -> pd.DataFrame:
     """Parse one cached NDBC ``realtime2`` file into a raw column DataFrame (as strings or mixed)."""
-    ("Implement: skip ``#`` header noise, build datetime + keep swell cols.")
     # Read space-delimited text, skipping the second row (units)
     df = pd.read_csv(
         path, 
@@ -106,8 +104,6 @@ def fetch_buoy_swell(
 
     ``use_cache``: if True and a cached file exists, skip re-downloading.
     """
-    ("Wire up download + parse + concat + date filter.")
-
     station_dfs = []
     cache_dir = Path(NDBC_CACHE_DIR) if NDBC_CACHE_DIR else Path("data/raw/ndbc")
     
