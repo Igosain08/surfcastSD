@@ -13,8 +13,8 @@ Output
 ------
 One table keyed by **hour** (UTC), typically:
 
-- Either **wide**: one row per ``hour_utc``, columns for each station’s swell metrics and each
-  break’s wind metrics — **prefix column names** so nothing collides.
+- Either **wide**: one row per ``hour_utc``, columns for each station's swell metrics and each
+  break's wind metrics — **prefix column names** so nothing collides.
 - Or **long** — if you choose long, document it and update ``scripts/run_week1.py`` + README.
 
 Implementation notes
@@ -39,8 +39,50 @@ def merge_hourly(
     wind: pd.DataFrame,
     how: str = "outer",
 ) -> pd.DataFrame:
-    """Join buoy and wind on aligned hourly timestamps; return a single DataFrame."""
-    raise NotImplementedError("Implement pivot and/or join logic; see module docstring.")
+    """Join buoy and wind on aligned hourly timestamps; return a wide DataFrame.
+
+    Output shape: one row per ``hour_utc``.
+    Buoy columns prefixed  ``buoy_{station}_{metric}``  (e.g. ``buoy_46232_WVHT``).
+    Wind columns prefixed  ``wind_{break}_{metric}``    (e.g. ``wind_la_jolla_shores_speed_mph``).
+
+    ``how`` controls the merge join type:
+      - "outer"  keeps every hour that appears in either source (NaN where one is missing).
+      - "inner"  keeps only hours present in both buoy and wind data.
+    """
+    buoy = buoy.copy()
+    wind = wind.copy()
+
+    buoy["hour_utc"] = buoy["timestamp_utc"].dt.floor("h")
+    wind["hour_utc"] = wind["timestamp_utc"].dt.floor("h")
+
+    # --- buoy: pivot to wide ---
+    swell_cols = [c for c in ["WVHT", "DPD", "MWD", "APD"] if c in buoy.columns]
+    buoy_wide = buoy.pivot_table(
+        index="hour_utc",
+        columns="station",
+        values=swell_cols,
+        aggfunc="first",
+    )
+    # MultiIndex (metric, station) → buoy_{station}_{metric}
+    buoy_wide.columns = [f"buoy_{station}_{metric}" for metric, station in buoy_wide.columns]
+    buoy_wide = buoy_wide.reset_index()
+
+    # --- wind: pivot to wide ---
+    wind_cols = [c for c in ["wind_speed_mph", "wind_direction_degrees"] if c in wind.columns]
+    wind_wide = wind.pivot_table(
+        index="hour_utc",
+        columns="break_id",
+        values=wind_cols,
+        aggfunc="first",
+    )
+    # MultiIndex (metric, break_id) → wind_{break_id}_{metric stripped of "wind_"}
+    wind_wide.columns = [
+        f"wind_{break_id}_{metric.replace('wind_', '')}"
+        for metric, break_id in wind_wide.columns
+    ]
+    wind_wide = wind_wide.reset_index()
+
+    return buoy_wide.merge(wind_wide, on="hour_utc", how=how)
 
 
 def main() -> None:
