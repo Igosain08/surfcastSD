@@ -28,8 +28,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from etl.config import NWS_CACHE_DIR  # noqa: E402
+from etl.config import NOAA_TIDES_CACHE_DIR, NWS_CACHE_DIR  # noqa: E402
 from etl.fetch_buoy import fetch_buoy_swell  # noqa: E402
+from etl.fetch_tide import fetch_tide_heights  # noqa: E402
 from etl.fetch_wind import fetch_wind_all_breaks  # noqa: E402
 from etl.merge_hourly import merge_hourly  # noqa: E402
 
@@ -60,7 +61,12 @@ def main() -> int:
         wind = fetch_wind_all_breaks(cache_dir=NWS_CACHE_DIR)
         print(f"  wind rows: {len(wind)}")
 
-        merged = merge_hourly(buoy, wind, how="outer")
+        print("Fetching NOAA tides…")
+        NOAA_TIDES_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        tide = fetch_tide_heights(days=args.days, cache_dir=NOAA_TIDES_CACHE_DIR)
+        print(f"  tide rows: {len(tide)}")
+
+        merged = merge_hourly(buoy, wind, tide=tide, how="outer")
         print(f"Merged shape: {merged.shape}")
         print(merged.head(3))
 
