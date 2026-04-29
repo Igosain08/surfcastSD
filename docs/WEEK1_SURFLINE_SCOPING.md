@@ -14,8 +14,9 @@ Last commit: 2023. Version 0.98.0.
 BuoyStation, TideStation, WaveModel, and WeatherApi — no Surfline 
 ratings anywhere in the library. Cannot be used for labels.
 
-pysurfline was also investigated but has been removed from PyPI 
-and the GitHub repo no longer exists. Not usable.
+pysurfline (wolfinger/pysurfline) — available on PyPI, version 0.0.3.
+Returns wave, wind, tides, weather data but has no ratings endpoint.
+Cannot be used for training labels.
 
 **Solution:** Hit the Surfline internal rating API directly using 
 requests — no library needed.
@@ -70,7 +71,7 @@ This is the key limitation — we have no historical labels yet.
 
 ## 5. Risk
 - surfpy: no Surfline support, useless for labels
-- pysurfline: removed from PyPI, repo deleted, unusable
+- pysurfline: available but no ratings endpoint, unusable for labels
 - Direct API: unofficial endpoint, no authentication required
   but Surfline could add auth or change URL anytime
 - Mitigation: all responses cached to data/raw/surfline/,
@@ -79,6 +80,7 @@ This is the key limitation — we have no historical labels yet.
   without login. Mentor should confirm this is acceptable.
 
 ## 6. Recommendation
+
 **Feasible for Week 2 going forward — not for historical data.**
 
 fetch_labels.py is implemented and working. It returns a clean 
