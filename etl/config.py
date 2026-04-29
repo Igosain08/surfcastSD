@@ -27,7 +27,7 @@ NDBC_STATIONS = (
 # Confirm on a map; if hourly returns 404 / marine-only issues, try a nearby inland proxy — ask mentor.
 BREAKS: dict[str, tuple[float, float]] = {
     "la_jolla_shores": (32.8579, -117.2575),
-    "blacks": (32.8807, -117.5036),
+    "blacks": (32.8807, -117.2436),
     "pb_point": (32.7970, -117.2550),
 }
 
