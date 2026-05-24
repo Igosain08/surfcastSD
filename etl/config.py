@@ -36,3 +36,14 @@ BREAKS: dict[str, tuple[float, float]] = {
 NWS_USER_AGENT = (
     "SurfCastSD/0.1 (college club project; https://github.com/Igosain08/surfcastSD)"
 )
+
+# Surfline internal rating API cache directory
+SURFLINE_CACHE_DIR = DATA_RAW / "surfline"
+
+# Surfline spot IDs for each break — found from Surfline URLs
+# e.g. surfline.com/surf-report/blacks/5842041f4e65fad6a770883b
+SURFLINE_SPOT_IDS: dict[str, str] = {
+    "la_jolla_shores": "5842041f4e65fad6a77088cc",
+    "blacks":          "5842041f4e65fad6a770883b",
+    "pb_point":        "5842041f4e65fad6a77088c2",
+}
