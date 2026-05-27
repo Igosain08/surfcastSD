@@ -31,6 +31,10 @@ BREAKS: dict[str, tuple[float, float]] = {
     "pb_point": (32.7970, -117.2550),
 }
 
+# NOAA CO-OPS tide station — 9410170 is La Jolla
+TIDE_STATION = "9410170"
+NOAA_TIDES_CACHE_DIR = DATA_RAW / "noaa_tides"
+
 # NWS requires a descriptive User-Agent (identify your app / repo / contact).
 # Replace with your club or mentor-approved string before heavy use.
 NWS_USER_AGENT = (
